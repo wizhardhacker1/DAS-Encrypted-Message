@@ -1,27 +1,14 @@
-import subprocess
-
-# Install required packages
-subprocess.run(['pip', 'install', '-r', 'requirements.txt'])
-
-import webbrowser
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-from Crypto.Protocol.KDF import PBKDF2
 import tkinter as tk
 from tkinter import filedialog, messagebox
-
+from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import PBKDF2
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
 
 class EncryptDecryptApp:
     def __init__(self, master):
         self.master = master
         master.title("DAS Secure Message Platform")
-
-        # Add a note label with a hyperlink effect
-        self.note_label = tk.Label(master, text="Note: Get a Random Encryption Key Here .",
-                                   fg="red", cursor="hand2")
-        self.note_label.pack()
-        self.note_label.bind("<Button-1>", lambda e: webbrowser.open_new("https://www.allkeysgenerator.com/"))
-
 
         # Create the secret key input box
         self.secret_key_label = tk.Label(master, text="Enter Shared Encryption key:")
@@ -46,7 +33,8 @@ class EncryptDecryptApp:
 
     def encrypt_message(self):
         try:
-            salt = b'salt_'
+            # Generate a random salt
+            salt = get_random_bytes(16)
             key = PBKDF2(self.secret_key.get().encode(), salt, dkLen=32)
 
             # Use AES-256 in CBC mode
@@ -60,7 +48,7 @@ class EncryptDecryptApp:
 
             # Combine the IV and the encrypted message
             iv = cipher.iv
-            message = iv + encrypted_message
+            message = salt + iv + encrypted_message
 
             # Save the encrypted message to a file
             file_path = filedialog.asksaveasfilename(defaultextension=".enc")
@@ -80,12 +68,12 @@ class EncryptDecryptApp:
             with open(file_path, "rb") as f:
                 message = f.read()
 
-            # Split the IV and the encrypted message
-            iv = message[:AES.block_size]
-            encrypted_message = message[AES.block_size:]
+            # Extract the salt, IV, and encrypted message
+            salt = message[:16]
+            iv = message[16:16+AES.block_size]
+            encrypted_message = message[16+AES.block_size:]
 
-            # Decrypt the encrypted message
-            salt = b'salt_'
+            # Derive the key using the salt
             key = PBKDF2(self.secret_key.get().encode(), salt, dkLen=32)
             cipher = AES.new(key, AES.MODE_CBC, iv)
             padded_message = cipher.decrypt(encrypted_message)
@@ -102,8 +90,8 @@ class EncryptDecryptApp:
 
         except ValueError:
             messagebox.showerror("Error", "The secret key must be 16, 24, or 32 bytes long")
-        except:
-            messagebox.showerror("Error", "Failed to decrypt the message")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to decrypt the message: {str(e)}")
 
 root = tk.Tk()
 app = EncryptDecryptApp(root)
